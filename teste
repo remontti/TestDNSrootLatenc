@@ -1,0 +1,66 @@
+#!/bin/bash
+# By Rudimar Remontti
+# remontti.com.br
+# https://www.internic.net/domain/named.root
+# Requisitos
+# apt install mtr-tiny
+
+progreSh() {
+    LR='\033[1;31m'
+    LG='\033[1;32m'
+    LC='\033[1;36m'
+    LW='\033[1;37m'
+    if [ "${1}" = "0" ]; then TME=$(date +"%s"); fi
+    SEC=`printf "%04d\n" $(($(date +"%s")-${TME}))`; SEC="$SEC"
+    PRC=${1}
+    SHW=`printf "%3d\n" ${PRC}`
+    LNE=`printf "%.0f" $((${PRC}/2))`
+    LRR_=""
+    for ((i=1;i<=40;i++))
+    do
+        DOTS=""; for ((ii=${i};ii<40;ii++)); do DOTS="${DOTS} "; done
+        if [ ${i} -le ${LNE} ]; then LRR_="${LRR_}█"; else LRR_="${LRR_} "; fi
+        echo -ne "${LW}Testando:${NC} ${LR}${2}${NC} ${LC}(${SEC}seg)${NC} ${LW}[ ${LRR_}${DOTS} ] ${SHW}%${NC} \r"
+    done
+}
+
+ROOTS_SERVER="a.root-servers.net,198.41.0.4,2001:503:ba3e::2:30,0
+b.root-servers.net,199.9.14.201,2001:500:200::b,6
+c.root-servers.net,192.33.4.12,2001:500:2::c,12
+d.root-servers.net,199.7.91.13,2001:500:2d::d,20
+e.root-servers.net,192.203.230.10,2001:500:a8::e,28
+f.root-servers.net,192.5.5.241,2001:500:2f::f,36
+g.root-servers.net,192.112.36.4,2001:500:12::d0d,44
+h.root-servers.net,198.97.190.53,2001:500:1::53,52
+i.root-servers.net,192.36.148.17,2001:7fe::53,60
+j.root-servers.net,192.58.128.30,2001:503:c27::2:30,68
+k.root-servers.net,193.0.14.129,2001:7fd::1,76
+l.root-servers.net,199.7.83.42,2001:500:9f::42,84
+m.root-servers.net,202.12.27.33,2001:dc3::35,92"
+echo 
+echo " | | | " > /tmp/teste_root.tmp
+echo "Domínio|Endereço IP|Saltos|Lat. Média" >> /tmp/teste_root.tmp
+for var in $ROOTS_SERVER ;do        
+      DOMAIN=`echo $var | cut -d , -f 1`
+      IPV4=`echo $var | cut -d , -f 2`
+      IPV6=`echo $var | cut -d , -f 3`
+      PERCENT=`echo $var | cut -d , -f 4`
+			progreSh $PERCENT $DOMAIN
+			echo " | | | " >> /tmp/teste_root.tmp
+			mtr -r -c3 -w -b -p -j -n $IPV4 > /tmp/${DOMAIN}.ipv4.json
+			sleep 2
+      SALTOS4=`cat /tmp/${DOMAIN}.ipv4.json | grep count | wc -l`
+      LATENCIA4=`cat /tmp/${DOMAIN}.ipv4.json | grep Avg | tail -n 1 | cut -d ':' -f 2 | sed -e "s/,//g" | sed -e "s/ //g"`
+      echo "$DOMAIN|$IPV4|$SALTOS4|$LATENCIA4 ms" >> /tmp/teste_root.tmp
+			PERCENT6=$((PERCENT+4))
+			progreSh $PERCENT6 $DOMAIN
+      mtr -r -c3 -w -b -p -j -n $IPV6 > /tmp/${DOMAIN}.ipv6.json
+      SALTOS6=`cat /tmp/${DOMAIN}.ipv6.json | grep count | wc -l`
+      LATENCIA6=`cat /tmp/${DOMAIN}.ipv6.json | grep Avg | tail -n 1 | cut -d ':' -f 2 | sed -e "s/,//g" | sed -e "s/ //g"`
+      echo "$DOMAIN|$IPV6|$SALTOS6|$LATENCIA6 ms" >> /tmp/teste_root.tmp
+done
+progreSh 100 _.root-servers.net
+echo; echo
+date
+cat /tmp/teste_root.tmp | column -t -s "|"
+echo
